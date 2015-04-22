@@ -458,11 +458,12 @@ read_suppressions(const string& file_path,
 /// The private data for @ref type_suppression.
 class type_suppression::priv
 {
-  string				type_name_regex_str_;
-  mutable sptr_utils::regex_t_sptr	type_name_regex_;
-  string				type_name_;
-  bool					consider_type_kind_;
-  type_suppression::type_kind		type_kind_;
+  string				 type_name_regex_str_;
+  mutable sptr_utils::regex_t_sptr	 type_name_regex_;
+  string				 type_name_;
+  bool					 consider_type_kind_;
+  type_suppression::type_kind		 type_kind_;
+  type_suppression::insertion_range_sptr insertion_range_;
 
   priv();
 
@@ -618,6 +619,24 @@ type_suppression::type_kind
 type_suppression::get_type_kind() const
 {return priv_->type_kind_;}
 
+/// Setter for the data member insertion range that specifies where a
+/// data member is inserted as far as this suppression specification
+/// is concerned.
+///
+/// @param range the new insertion range
+void
+type_suppression::set_data_member_insertion_range(insertion_range_sptr range)
+{priv_->insertion_range_ = range;}
+
+/// Getter for the data member insertion range that specifiers where a
+/// data member is inserted as far as this suppression specification
+/// is concerned.
+///
+/// @return the insertion range.
+type_suppression::insertion_range_sptr
+type_suppression::get_data_member_insertion_range() const
+{return priv_->insertion_range_;}
+
 /// Evaluate this suppression specification on a given diff node and
 /// say if the diff node should be suppressed or not.
 ///
@@ -707,8 +726,93 @@ type_suppression::suppresses_diff(const diff* diff) const
 	return false;
     }
 
+  if (const class_diff* d = dynamic_cast<const class_diff*>(diff))
+    if (insertion_range_sptr insert_range = get_data_member_insertion_range())
+      {
+	size_t initial_size = d->first_class_decl()->get_size_in_bits();
+	if (initial_size > 0)
+	  {
+	    unsigned range_begin =
+	      (insert_range->begin() < 0)
+	      ? initial_size
+	      : insert_range->begin();
+
+	    unsigned range_end =
+	      (insert_range->begin() < 0)
+	      ? initial_size
+	      : insert_range->end();
+
+	    assert(range_end >= range_begin);
+
+	    for (string_decl_base_sptr_map::const_iterator m =
+		   d->inserted_data_members().begin();
+		 m != d->inserted_data_members().end();
+		 ++m)
+	      {
+		decl_base_sptr member = m->second;
+		size_t dm_offset = get_data_member_offset(member);
+		if (insert_range->begin () < 0
+		    || insert_range->end() < 0)
+		  {
+		    if (dm_offset < range_begin)
+		      return false;
+		  }
+		else
+		  if (dm_offset < range_begin || dm_offset > range_end)
+		    return false;
+	      }
+	  }
+      }
+
   return true;
 }
+
+/// The private data of type_suppression::insertion_range
+struct type_suppression::insertion_range::priv
+{
+  int begin_;
+  int end_;
+
+  priv()
+    : begin_(), end_()
+  {}
+
+  priv(int begin, int end)
+    : begin_(begin), end_(end)
+  {}
+}; // end struct type_suppression::insertion_range::priv
+
+/// Default Constructor of @ref type_suppression::insertion_range.
+type_suppression::insertion_range::insertion_range()
+  : priv_(new priv)
+{}
+
+/// Constructor of @ref type_suppression::insertion_range.
+///
+/// @param begin the start of the range.  A negative value means the
+/// maximum possible value for the end of the range.
+///
+/// @param end the end of the range.  A negative value means the
+/// maximum possible value for the end of the range.
+type_suppression::insertion_range::insertion_range(int begin, int end)
+  : priv_(new priv(begin, end))
+{}
+
+/// Getter for the beginning of the range.
+///
+/// @return the beginning of the range.  A negative value means the
+/// maximum possible value for the end of the range.
+int
+type_suppression::insertion_range::begin() const
+{return priv_->begin_;}
+
+/// Getter for the end of the range.
+///
+/// @return the end of the range.  A negative value means the
+/// maximum possible value for the end of the range.
+int
+type_suppression::insertion_range::end() const
+{return priv_->end_;}
 
 // </type_suppression stuff>
 
@@ -755,32 +859,62 @@ read_type_suppression(const ini::config::section& section)
   if (section.get_name() != "suppress_type")
     return nil;
 
-  ini::config::property_sptr label = section.find_property("label");
-  string label_str = label && !label->second.empty() ? label->second : "";
+  ini::simple_property_sptr label =
+    is_simple_property(section.find_property("label"));
+  string label_str =
+    label && !label->get_value().empty() ? label->get_value() : "";
 
-  ini::config::property_sptr name_regex_prop =
-    section.find_property("name_regexp");
+  ini::simple_property_sptr name_regex_prop =
+    is_simple_property(section.find_property("name_regexp"));
   string name_regex_str =
-    name_regex_prop && !name_regex_prop->second.empty()
-    ? name_regex_prop->second
+    name_regex_prop && !name_regex_prop->get_value().empty()
+    ? name_regex_prop->get_value()
     : "";
 
-  ini::config::property_sptr name_prop = section.find_property("name");
-  string name_str = name_prop && !name_prop->second.empty()
-    ? name_prop->second
+  ini::simple_property_sptr name_prop =
+    is_simple_property(section.find_property("name"));
+  string name_str = name_prop && !name_prop->get_value().empty()
+    ? name_prop->get_value()
     : "";
 
   bool consider_type_kind = false;
   type_suppression::type_kind type_kind = type_suppression::UNKNOWN_TYPE_KIND;
-  if (ini::config::property_sptr type_kind_prop =
-      section.find_property("type_kind"))
+  if (ini::simple_property_sptr type_kind_prop =
+      is_simple_property(section.find_property("type_kind")))
     {
       consider_type_kind = true;
-      type_kind = read_type_kind_string(type_kind_prop->second);
+      type_kind = read_type_kind_string(type_kind_prop->get_value());
     }
 
-  if ((!name_regex_prop || name_regex_prop->second.empty())
-      && (!name_prop || name_prop->second.empty())
+  bool consider_data_member_insertion = false;
+  type_suppression::insertion_range_sptr insert_range;
+  if (ini::tuple_property_sptr prop =
+      is_tuple_property(section.find_property
+			("has_data_member_inserted_between")))
+    {
+      int begin = 0, end = 0;
+      if (prop->get_values().size() == 2)
+	{
+	  if (prop->get_values()[0] == "end")
+	    begin = -1;
+	  else
+	    begin = atoi(prop->get_values()[0].c_str());
+
+	  if (prop->get_values()[1] == "end")
+	    end = -1;
+	  else
+	    end = atoi(prop->get_values()[1].c_str());
+	  if (end >= begin)
+	    {
+	      insert_range.reset(new type_suppression::insertion_range(begin,
+								       end));
+	      consider_data_member_insertion = true;
+	    }
+	}
+    }
+
+  if ((!name_regex_prop || name_regex_prop->get_value().empty())
+      && (!name_prop || name_prop->get_value().empty())
       && !consider_type_kind)
     return nil;
 
@@ -792,6 +926,9 @@ read_type_suppression(const ini::config::section& section)
       suppr->set_consider_type_kind(true);
       suppr->set_type_kind(type_kind);
     }
+
+  if (consider_data_member_insertion)
+    suppr->set_data_member_insertion_range(insert_range);
 
   return suppr;
 }
@@ -1626,56 +1763,59 @@ read_function_suppression(const ini::config::section& section)
   if (section.get_name() != "suppress_function")
     return nil;
 
-  ini::config::property_sptr label_prop = section.find_property("label");
-  string label_str = (label_prop && !label_prop->second.empty())
-    ? label_prop->second
+  ini::simple_property_sptr label_prop =
+    is_simple_property(section.find_property("label"));
+  string label_str = (label_prop && !label_prop->get_value().empty())
+    ? label_prop->get_value()
     : "";
 
-  ini::config::property_sptr name_prop = section.find_property("name");
-  string name = name_prop && !name_prop->second.empty()
-    ? name_prop->second
+  ini::simple_property_sptr name_prop =
+    is_simple_property(section.find_property("name"));
+  string name = name_prop && !name_prop->get_value().empty()
+    ? name_prop->get_value()
     : "";
 
-  ini::config::property_sptr name_regex_prop =
-    section.find_property("name_regexp");
-  string name_regex_str = name_regex_prop && !name_regex_prop->second.empty()
-    ? name_regex_prop->second
+  ini::simple_property_sptr name_regex_prop =
+    is_simple_property(section.find_property("name_regexp"));
+  string name_regex_str =
+    name_regex_prop && !name_regex_prop->get_value().empty()
+    ? name_regex_prop->get_value()
     : "";
 
-  ini::config::property_sptr return_type_name_prop =
-    section.find_property("return_type_name");
+  ini::simple_property_sptr return_type_name_prop =
+    is_simple_property(section.find_property("return_type_name"));
   string return_type_name = (return_type_name_prop)
-    ? return_type_name_prop->second
+    ? return_type_name_prop->get_value()
     : "";
 
-  ini::config::property_sptr return_type_regex_prop =
-    section.find_property("return_type_regexp");
+  ini::simple_property_sptr return_type_regex_prop =
+    is_simple_property(section.find_property("return_type_regexp"));
   string return_type_regex_str =
     (return_type_regex_prop
-     && !return_type_regex_prop->second.empty())
-    ? return_type_regex_prop->second
+     && !return_type_regex_prop->get_value().empty())
+    ? return_type_regex_prop->get_value()
     : "";
 
-  ini::config::property_sptr sym_name_prop =
-    section.find_property("symbol_name");
-  string sym_name = (sym_name_prop) ? sym_name_prop->second : "";
+  ini::simple_property_sptr sym_name_prop =
+    is_simple_property(section.find_property("symbol_name"));
+  string sym_name = (sym_name_prop) ? sym_name_prop->get_value() : "";
 
-  ini::config::property_sptr sym_name_regex_prop =
-    section.find_property("symbol_name_regexp");
+  ini::simple_property_sptr sym_name_regex_prop =
+    is_simple_property(section.find_property("symbol_name_regexp"));
   string sym_name_regex_str =
-    (sym_name_regex_prop && !sym_name_regex_prop->second.empty())
-    ? sym_name_regex_prop->second
+    (sym_name_regex_prop && !sym_name_regex_prop->get_value().empty())
+    ? sym_name_regex_prop->get_value()
     : "";
 
-  ini::config::property_sptr sym_ver_prop =
-    section.find_property("symbol_version");
-  string sym_version = (sym_ver_prop) ? sym_ver_prop->second : "";
+  ini::simple_property_sptr sym_ver_prop =
+    is_simple_property(section.find_property("symbol_version"));
+  string sym_version = (sym_ver_prop) ? sym_ver_prop->get_value() : "";
 
-  ini::config::property_sptr sym_ver_regex_prop =
-    section.find_property("symbol_version_regexp");
+  ini::simple_property_sptr sym_ver_regex_prop =
+    is_simple_property(section.find_property("symbol_version_regexp"));
   string sym_ver_regex_str =
-    (sym_ver_regex_prop && !sym_ver_regex_prop->second.empty())
-    ? sym_ver_regex_prop->second
+    (sym_ver_regex_prop && !sym_ver_regex_prop->get_value().empty())
+    ? sym_ver_regex_prop->get_value()
     : "";
 
   function_suppression::parameter_spec_sptr parm;
@@ -1684,9 +1824,13 @@ read_function_suppression(const ini::config::section& section)
 	 section.get_properties().begin();
        p != section.get_properties().end();
        ++p)
-    if ((*p)->first == "parameter")
-      if (parm = read_parameter_spec_from_string((*p)->second))
-	parms.push_back(parm);
+    if ((*p)->get_name() == "parameter")
+      {
+	ini::simple_property_sptr prop = is_simple_property(*p);
+	assert(prop);
+	if (parm = read_parameter_spec_from_string(prop->get_value()))
+	  parms.push_back(parm);
+      }
 
   function_suppression_sptr result;
   if (!label_str.empty()
@@ -2230,60 +2374,63 @@ read_variable_suppression(const ini::config::section& section)
   if (section.get_name() != "suppress_variable")
     return result;
 
-  ini::config::property_sptr label_prop = section.find_property("label");
-  string label_str = (label_prop && !label_prop->second.empty()
-		      ? label_prop->second
+  ini::simple_property_sptr label_prop =
+    is_simple_property(section.find_property("label"));
+  string label_str = (label_prop && !label_prop->get_value().empty()
+		      ? label_prop->get_value()
 		      : "");
 
-  ini::config::property_sptr name_prop = section.find_property("name");
-  string name_str = (name_prop && !name_prop->second.empty()
-		     ? name_prop->second
+  ini::simple_property_sptr name_prop =
+    is_simple_property(section.find_property("name"));
+  string name_str = (name_prop && !name_prop->get_value().empty()
+		     ? name_prop->get_value()
 		     : "");
 
-  ini::config::property_sptr name_regex_prop =
-    section.find_property("name_regexp");
-  string name_regex_str = (name_regex_prop && !name_regex_prop->second.empty()
-			   ? name_regex_prop->second
-			   : "");
+  ini::simple_property_sptr name_regex_prop =
+    is_simple_property(section.find_property("name_regexp"));
+  string name_regex_str =
+    (name_regex_prop && !name_regex_prop->get_value().empty()
+     ? name_regex_prop->get_value()
+     : "");
 
-  ini::config::property_sptr sym_name_prop =
-    section.find_property("symbol_name");
-  string symbol_name = (sym_name_prop && !sym_name_prop->second.empty()
-			? sym_name_prop->second
+  ini::simple_property_sptr sym_name_prop =
+    is_simple_property(section.find_property("symbol_name"));
+  string symbol_name = (sym_name_prop && !sym_name_prop->get_value().empty()
+			? sym_name_prop->get_value()
 			: "");
 
-  ini::config::property_sptr sym_name_regex_prop =
-    section.find_property("symbol_name_regexp");
+  ini::simple_property_sptr sym_name_regex_prop =
+    is_simple_property(section.find_property("symbol_name_regexp"));
   string symbol_name_regex_str =
-    (sym_name_regex_prop && !sym_name_regex_prop->second.empty()
-     ? sym_name_regex_prop->second
+    (sym_name_regex_prop && !sym_name_regex_prop->get_value().empty()
+     ? sym_name_regex_prop->get_value()
      : "");
 
-  ini::config::property_sptr sym_version_prop =
-    section.find_property("symbol_version");
+  ini::simple_property_sptr sym_version_prop =
+    is_simple_property(section.find_property("symbol_version"));
   string symbol_version =
-    (sym_version_prop && !sym_version_prop->second.empty()
-     ? sym_version_prop->second
+    (sym_version_prop && !sym_version_prop->get_value().empty()
+     ? sym_version_prop->get_value()
      : "");
 
-  ini::config::property_sptr sym_version_regex_prop =
-    section.find_property("symbol_version_regexp");
+  ini::simple_property_sptr sym_version_regex_prop =
+    is_simple_property(section.find_property("symbol_version_regexp"));
   string symbol_version_regex_str =
-    (sym_version_regex_prop && !sym_version_regex_prop->second.empty()
-     ? sym_version_regex_prop->second
+    (sym_version_regex_prop && !sym_version_regex_prop->get_value().empty()
+     ? sym_version_regex_prop->get_value()
      : "");
 
-  ini::config::property_sptr type_name_prop =
-    section.find_property("type_name");
-  string type_name_str = (type_name_prop && !type_name_prop->second.empty()
-			  ? type_name_prop->second
+  ini::simple_property_sptr type_name_prop =
+    is_simple_property(section.find_property("type_name"));
+  string type_name_str = (type_name_prop && !type_name_prop->get_value().empty()
+			  ? type_name_prop->get_value()
 			  : "");
 
-  ini::config::property_sptr type_name_regex_prop =
-    section.find_property("type_name_regexp");
+  ini::simple_property_sptr type_name_regex_prop =
+    is_simple_property(section.find_property("type_name_regexp"));
   string type_name_regex_str =
-    (type_name_regex_prop && !type_name_regex_prop->second.empty()
-     ? type_name_regex_prop->second
+    (type_name_regex_prop && !type_name_regex_prop->get_value().empty()
+     ? type_name_regex_prop->get_value()
      : "");
 
   if (label_str.empty()

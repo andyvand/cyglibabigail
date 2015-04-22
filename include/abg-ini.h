@@ -41,9 +41,107 @@ namespace ini
 {
 // Inject some standard types in this namespace.
 using std::tr1::shared_ptr;
+using std::tr1::dynamic_pointer_cast;
 using std::string;
 using std::vector;
 using std:: pair;
+
+class property_base;
+/// Convenience typefef for shared_ptr to @ref property_base.
+typedef shared_ptr<property_base> property_base_sptr;
+
+/// The base class of the different kinds of properties of an INI
+/// file.
+class property_base
+{
+  struct priv;
+  typedef shared_ptr<priv> priv_sptr;
+  priv_sptr priv_;
+
+public:
+
+  property_base();
+
+  property_base(const string& name);
+
+  const string&
+  get_name() const;
+
+  void
+  set_name(const string& name);
+
+  virtual ~property_base();
+}; // end class property_base
+
+class simple_property;
+/// Convenience typedef for a shared_ptr to an @ref simple_property.
+typedef shared_ptr<simple_property> simple_property_sptr;
+
+/// A simple property.  That is, one which value is a string.
+class simple_property : public property_base
+{
+  struct priv;
+  typedef shared_ptr<priv> priv_sptr;
+
+  priv_sptr priv_;
+
+public:
+  simple_property();
+
+  simple_property(const string& name, const string& value);
+
+  const string&
+  get_value() const;
+
+  void
+  set_value(const string&);
+
+  virtual ~simple_property();
+}; // end class simple_property
+
+simple_property*
+is_simple_property(const property_base* p);
+
+simple_property_sptr
+is_simple_property(const property_base_sptr p);
+
+class tuple_property;
+/// Convenience typedef for a shared_ptr of @ref tuple_property.
+typedef shared_ptr<tuple_property> tuple_property_sptr;
+
+/// Abstraction of a tuple property.  A tuple property is a property
+/// which value is a tuple.
+class tuple_property : public property_base
+{
+  struct priv;
+  typedef shared_ptr<priv> priv_sptr;
+
+  priv_sptr priv_;
+
+public:
+  tuple_property();
+
+  tuple_property(const string& name,
+		 const vector<string>& values);
+
+  void
+  set_values(const vector<string>& values);
+
+  const vector<string>&
+  get_values() const;
+
+  vector<string>&
+  get_values();
+
+  virtual
+  ~tuple_property();
+}; // end class tuple_property
+
+tuple_property*
+is_tuple_property(const property_base* p);
+
+tuple_property_sptr
+is_tuple_property(const property_base_sptr p);
 
 class config;
 
@@ -66,16 +164,8 @@ public:
   /// A convenience typedef for a vector of config::section_sptr.
   typedef vector<section_sptr> sections_type;
 
-  /// A convenience typedef for a pair of strings representing a
-  /// property that lies inside a section.  The first element of the
-  /// pair is the property name, and the second is the property value.
-  typedef std::pair<string, string> property;
-
-  /// A convenience typedef for a shared pointer to a @ref property.
-  typedef shared_ptr<property> property_sptr;
-
   /// A convenience typedef for a vector of @ref property_sptr
-  typedef vector<property_sptr> property_vector;
+  typedef vector<property_base_sptr> property_vector;
 
 private:
   priv_sptr priv_;
@@ -128,9 +218,9 @@ public:
   set_properties(const property_vector& properties);
 
   void
-  add_property(const property_sptr prop);
+  add_property(const property_base_sptr prop);
 
-  property_sptr
+  property_base_sptr
   find_property(const string& prop_name) const;
 
   virtual ~section();

@@ -26,6 +26,7 @@
 /// the libabigail library.
 
 #include <cassert>
+#include <cstdlib>
 #include <utility>
 #include <memory>
 #include <fstream>
@@ -38,6 +39,322 @@ namespace ini
 
 using std::istream;
 using std::pair;
+
+static bool
+char_is_white_space(int b);
+
+static bool
+char_is_comment_start(int b);
+
+/// Test if a given character is a delimiter.
+///
+///
+///@param b the value of the character to test for.
+///
+///@param include_white_space if true, consider white spaces as a
+///delimiter.
+///
+/// @return true iff @p b is a delimiter.
+static bool
+char_is_delimiter(int b, bool include_white_space = true)
+{
+  return (b == '['
+	    || b == ']'
+	    || b == '{'
+	    || b == '}'
+	    || b == '='
+	    || b == ','
+	    || (include_white_space && char_is_white_space(b))
+	    || char_is_comment_start(b));
+}
+
+/// Return true iff a given character can be part of a property
+/// value.
+///
+/// @param b the character to test against.
+///
+/// @return true iff @p b is a character that can be part of a
+/// property value.
+static bool
+char_is_property_value_char(int b)
+{
+  if (char_is_delimiter(b, /*include_white_space=*/false)
+	|| b == '\n')
+    return false;
+  return true;
+}
+
+/// Test if a given character is meant to be part of a section name.
+///
+/// @param b the character to test against.
+///
+/// @return true iff @p b is a character that is meant to be part of
+/// a section name.
+static bool
+char_is_section_name_char(int b)
+{
+  if (b == '[' || b == ']' || b == '\n' || char_is_comment_start(b))
+    return false;
+  return true;
+}
+
+/// Test if a given character is meant to be part of a property name.
+///
+/// @param b the character to test against.
+///
+/// @return true iff @p b is a character that is meant to be part of
+/// a section name.
+static bool
+char_is_property_name_char(int b)
+{
+  if (char_is_delimiter(b))
+    return false;
+  return true;
+}
+
+/// Test if a given character is meant to be the start of a comment.
+///
+/// @param b the character to test against.
+///
+/// @return true iff @p b is the start of a comment.
+static bool
+char_is_comment_start(int b)
+{return b == ';' || b == '#';}
+
+/// Test if a character is meant a white space.
+///
+/// @param b the character to test against.
+///
+/// @return true iff @p b is a white space.
+static bool
+char_is_white_space(int b)
+{return b == ' ' || b == '\t' || b == '\n';}
+
+/// Remove the trailing spaces at the begining and at the end of a
+/// given string.
+///
+/// @param str the string to remove trailing white spaces from.
+///
+/// @return the string resulting from the removal of of trailing white
+/// space from @p str.
+static string
+remove_trailing_white_spaces(const string& str)
+{
+  string result;
+
+  if (str.empty())
+    return str;
+
+  unsigned s = 0, e = str.size() -1;
+
+  for (; s <= e; ++s)
+    if (!char_is_white_space(str[s]))
+      break;
+
+  for (; e > s; --e)
+    if (!char_is_white_space(str[e]))
+      break;
+
+  for (unsigned i = s; i <= e; ++i)
+    result += str[i];
+
+  return result;
+}
+
+// <property_base stuff>
+
+/// Private data of @ref property_base type.
+struct property_base::priv
+{
+  string name_;
+
+  priv()
+  {}
+
+  priv(const string& name)
+    : name_(name)
+  {}
+}; // end struct property_base::priv
+
+/// Constructor of @ref property_base.
+property_base::property_base()
+  : priv_(new priv)
+{}
+
+/// Constructor of @ref property_base
+///
+/// @param name the name of the property.
+property_base::property_base(const string& name)
+  : priv_(new priv(name))
+{}
+
+/// Getter of the name of the property.
+///
+/// @return the name of the property.
+const string&
+property_base::get_name()const
+{return priv_->name_;}
+
+/// Setter of the name of the property.
+///
+/// @param name the new name of the property.
+void
+property_base::set_name(const string& name)
+{priv_->name_ = name;}
+
+/// Destructor of the property.
+property_base::~property_base()
+{}
+// </property_base stuff>
+
+// <simple_property stuff>
+
+/// Private data of the @ref simple_property type.
+struct simple_property::priv
+{
+  string value_;
+
+  priv()
+  {}
+
+  priv(const string& value)
+    : value_(value)
+  {}
+}; // end struct simple_property::priv
+
+/// Default constructor of the @ref simple_property type.
+simple_property::simple_property()
+  : property_base(),
+    priv_(new priv)
+{}
+
+/// Constructor for the @ref simple_property type.
+///
+/// @param name the name of the property.
+///
+/// @param value the value of the property.
+simple_property::simple_property(const string& name,
+				 const string& value)
+  : property_base(name),
+    priv_(new priv(value))
+{}
+
+/// Getter for the string value of the property.
+///
+/// @return the string value of the property.
+const string&
+simple_property::get_value() const
+{return priv_->value_;}
+
+/// Setter for the string value of the property.
+///
+/// @param value the new string value of the property.
+void
+simple_property::set_value(const string& value)
+{priv_->value_ = value;}
+
+/// Destructor of the @ref simple_property type.
+simple_property::~simple_property()
+{}
+
+/// Tests if a @ref property_base is a simple property.
+///
+/// @return a pointer to the @ref simple_property sub-object of the
+/// @ref property_base instance, iff it's an @ref simple_property
+/// instance.
+simple_property*
+is_simple_property(const property_base* p)
+{return dynamic_cast<simple_property*>(const_cast<property_base*>(p));}
+
+/// Tests if a @ref property_base is a simple property.
+///
+/// @return a smart pointer to the @ref simple_property sub-object of
+/// the @ref property_base instance, iff it's an @ref simple_property
+/// instance.
+simple_property_sptr
+is_simple_property(const property_base_sptr p)
+{return dynamic_pointer_cast<simple_property>(p);}
+
+// </simple_property stuff>
+
+// <tuple_property stuff>
+struct tuple_property::priv
+{
+  vector<string> values_;
+
+  priv()
+  {}
+
+  priv(const vector<string>& values)
+    : values_(values)
+  {}
+}; // end struct tuple_property::priv
+
+/// Default constructor of the @ref tuple_property type.
+tuple_property::tuple_property()
+  : property_base(),
+    priv_(new priv)
+{}
+
+/// Constructor of the @ref tuple_property type.
+///
+/// @param name the name of the property.
+///
+/// @param values the tuple value of the property.
+tuple_property::tuple_property(const string& name,
+			       const vector<string>& values)
+  : property_base(name),
+    priv_(new priv(values))
+{}
+
+/// Setter for the tuple value of the property.
+///
+/// @param values the new tuple value of the property.
+void
+tuple_property::set_values(const vector<string>& values)
+{priv_->values_ = values;}
+
+/// Getter for the tuple value of the property.
+///
+/// @return the tuple value of the property.
+const vector<string>&
+tuple_property::get_values() const
+{return priv_->values_;}
+
+/// Getter for the tuple value of the property.
+///
+/// @return the tuple value of the property.
+vector<string>&
+tuple_property::get_values()
+{return priv_->values_;}
+
+/// Destructor for the @ref tuple_property type.
+tuple_property::~tuple_property()
+{}
+
+/// Test if an instance of @ref property_base is an instance of @ref
+/// tuple_property.
+///
+/// @param p the instance of @ref property_base to test for.
+///
+/// @return return a pointer to the sub-object of @ref tuple_property
+/// iff @p p is an instance of @ref tuple_property.
+tuple_property*
+is_tuple_property(const property_base* p)
+{return dynamic_cast<tuple_property*>(const_cast<property_base*>(p));}
+
+/// Test if an instance of @ref property_base is an instance of @ref
+/// tuple_property.
+///
+/// @param p the instance of @ref property_base to test for.
+///
+/// @return return a smart pointer to the sub-object of @ref
+/// tuple_property iff @p p is an instance of @ref tuple_property.
+tuple_property_sptr
+is_tuple_property(const property_base_sptr p)
+{return dynamic_pointer_cast<tuple_property>(p);}
+
+// </tuple_property stuff>
 
 class config::section::priv
 {
@@ -99,7 +416,7 @@ config::section::set_properties(const property_vector& properties)
 ///
 /// @param prop the property to add to the section.
 void
-config::section::add_property(const property_sptr prop)
+config::section::add_property(const property_base_sptr prop)
 {priv_->properties_.push_back(prop);}
 
 /// Find a property that has a given name.
@@ -110,15 +427,15 @@ config::section::add_property(const property_sptr prop)
 ///
 /// @return the found property, or nil if no property with the name @p
 /// prop_name was found.
-config::property_sptr
+property_base_sptr
 config::section::find_property(const string& prop_name) const
 {
   for (property_vector::const_iterator i = get_properties().begin();
        i != get_properties().end();
        ++i)
-    if ((*i)->first == prop_name)
+    if ((*i)->get_name() == prop_name)
       return *i;
-  return property_sptr();
+  return property_base_sptr();
 }
 
 /// Destructor of config::section.
@@ -152,87 +469,6 @@ public:
       cur_line_(0),
       cur_column_(0)
   {}
-
-  /// Test if a given character is a delimiter.
-  ///
-  ///
-  ///@param b the value of the character to test for.
-  ///
-  /// @return true iff @p b is a delimiter.
-  bool
-  char_is_delimiter(int b)
-  {
-    return (b == '['
-	    || b == ']'
-	    || b == '='
-	    || char_is_white_space(b)
-	    || char_is_comment_start(b));
-  }
-
-  /// Return true iff a given character can be part of a property
-  /// value.
-  ///
-  /// @param b the character to test against.
-  ///
-  /// @return true iff @p b is a character that can be part of a
-  /// property value.
-  bool
-  char_is_property_value_char(int b)
-  {
-    if (b == '['
-	|| b == ']'
-	|| b == '='
-	|| char_is_comment_start(b)
-	|| b == '\n')
-      return false;
-    return true;
-  }
-
-  /// Test if a given character is meant to be part of a section name.
-  ///
-  /// @param b the character to test against.
-  ///
-  /// @return true iff @p b is a character that is meant to be part of
-  /// a section name.
-  bool
-  char_is_section_name_char(int b)
-  {
-    if (b == '[' || b == ']' || b == '\n' || char_is_comment_start(b))
-      return false;
-    return true;
-  }
-
-  /// Test if a given character is meant to be part of a property name.
-  ///
-  /// @param b the character to test against.
-  ///
-  /// @return true iff @p b is a character that is meant to be part of
-  /// a section name.
-  bool
-  char_is_property_name_char(int b)
-  {
-    if (char_is_delimiter(b))
-      return false;
-    return true;
-  }
-
-  /// Test if a given character is meant to be the start of a comment.
-  ///
-  /// @param b the character to test against.
-  ///
-  /// @return true iff @p b is the start of a comment.
-  bool
-  char_is_comment_start(int b)
-  {return b == ';' || b == '#';}
-
-  /// Test if a character is meant a white space.
-  ///
-  /// @param b the character to test against.
-  ///
-  /// @return true iff @p b is a white space.
-  bool
-  char_is_white_space(int b)
-  {return b == ' ' || b == '\t' || b == '\n';}
 
   /// Read the next character from the input stream.
   ///
@@ -421,29 +657,74 @@ public:
   /// @param value out parameter.  Is set to the property value that
   /// has been parsed.  This is set only if the function returned true.
   ///
-  /// @return true if the stream is left in non-erratic state.
+  /// @return the property read, or NULL if none was read.
   bool
-  read_property_value(string& value)
+  read_simple_property_value(string& value)
   {
     int b = in_.peek();
     if (!in_.good())
       return false;
 
-    if (char_is_delimiter(b))
+    if (char_is_delimiter(b, /*include_white_space=*/false))
       // Empty property value.  This is accepted.
       return true;
 
+    string v;
     char c = 0;
     assert(read_next_char(c));
-    value += c;
+    v += c;
 
     for (b = in_.peek(); in_.good();b = in_.peek())
       {
 	if (!char_is_property_value_char(b))
 	  break;
 	assert(read_next_char(c));
-	value += c;
+	v += c;
       }
+    value = remove_trailing_white_spaces(v);
+    return true;
+  }
+
+  /// A property value that is a tuple.
+  ///
+  /// @param tuple the read property tuple value.
+  ///
+  /// @return true iff the tuple property value could be read
+  /// correctly.
+  bool
+  read_tuple_property_value(vector<string>& tuple)
+  {
+    int b = in_.peek();
+    if (!in_.good())
+      return false;
+
+    if (b != '{')
+      return false;
+
+    char c = 0;
+    assert(read_next_char(c));
+
+    string value;
+    vector<string> t;
+    while (in_.good() && in_.peek() != '}')
+      {
+	while (read_simple_property_value(value) && !value.empty())
+	  {
+	    t.push_back(value);
+	    value.clear();
+	  }
+	if (in_.good() && in_.peek() == ',')
+	  {
+	    char c = 0;
+	    read_next_char(c);
+	  }
+      }
+
+    b = in_.peek();
+    if (b != '}')
+      return false;
+
+    tuple = t;
     return true;
   }
 
@@ -481,10 +762,10 @@ public:
   ///
   /// @return the resulting pointer to property iff one could be
   /// parsed.
-  config::property_sptr
+  property_base_sptr
   read_property()
   {
-    config::property_sptr nil;
+    property_base_sptr nil;
 
     string name;
     if (!read_property_name(name))
@@ -502,11 +783,24 @@ public:
     if (!in_.good())
       return nil;
 
-    string value;
-    if (!read_property_value(value))
+    bool has_simple_value = false;
+    string simple_value;
+    bool has_tuple_value = false;
+    vector<string> tuple_value;
+    if (read_tuple_property_value(tuple_value))
+      has_tuple_value = true;
+    else if (read_simple_property_value(simple_value))
+      has_simple_value = true;
+
+    if (!has_simple_value && !has_tuple_value)
       return nil;
 
-    config::property_sptr result(new std::pair<string, string>(name, value));
+    property_base_sptr result;
+    if (has_tuple_value)
+      result.reset(new tuple_property(name, tuple_value));
+    else
+      result.reset(new simple_property(name, simple_value));
+
     return result;
   }
 
@@ -541,7 +835,7 @@ public:
       return nil;
 
     config::property_vector properties;
-    while (config::property_sptr prop = read_property())
+    while (property_base_sptr prop = read_property())
       {
 	properties.push_back(prop);
 	skip_white_spaces_or_comments();
@@ -739,6 +1033,34 @@ read_config(const string& path)
 
 // <config writer stuff>
 
+/// Serialize the value of a property to a string.
+///
+/// @param prop the property which value to serialize.
+///
+/// @return the string that represents the value of @p prop.
+static string
+write_property_value(const property_base_sptr& prop)
+{
+  if (simple_property_sptr p = is_simple_property(prop))
+    return p->get_value();
+
+  string result = "{";
+  if (tuple_property_sptr p = is_tuple_property(prop))
+    for (vector<string>::const_iterator v = p->get_values().begin();
+	 v != p->get_values().end();
+	 ++v)
+      {
+	if (v != p->get_values().begin())
+	  result += ",";
+	result +=  *v;
+      }
+  else
+    abort();
+  result += "}";
+
+  return result;
+}
+
 /// Serialize an ini property to an output stream.
 ///
 /// @param prop the property to serialize to the output stream.
@@ -747,10 +1069,10 @@ read_config(const string& path)
 ///
 /// @return true if the ouput stream is left in a non-erratic state.
 static bool
-write_property(const config::property& prop,
+write_property(const property_base_sptr& prop,
 	       std::ostream& out)
 {
-  out << prop.first << " = " << prop.second;
+  out << prop->get_name() << " = " << write_property_value(prop);
   return out.good();
 }
 
@@ -770,7 +1092,7 @@ write_section(const config::section& section,
        ++i)
     {
       out << "  ";
-      write_property(**i, out);
+      write_property(*i, out);
       out << "\n";
     }
   return out.good();

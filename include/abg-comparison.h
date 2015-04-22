@@ -474,6 +474,11 @@ public:
     BUILTIN_TYPE_KIND
   }; // end enum type_kind
 
+  class insertion_range;
+  /// A convenience typedef for a shared pointer to @ref
+  /// insertion_range.
+  typedef shared_ptr<insertion_range> insertion_range_sptr;
+
   type_suppression(const string& label,
 		   const string& type_name_regexp,
 		   const string& type_name);
@@ -504,9 +509,36 @@ public:
   type_kind
   get_type_kind() const;
 
+  void
+  set_data_member_insertion_range(insertion_range_sptr range);
+
+  insertion_range_sptr
+  get_data_member_insertion_range() const;
+
   virtual bool
   suppresses_diff(const diff* diff) const;
 }; // end type_suppression
+
+/// The abstraction of a range of offsets in which a member of a type
+/// might get inserted.
+class type_suppression::insertion_range
+{
+  struct priv;
+  typedef shared_ptr<priv> priv_sptr;
+
+  priv_sptr priv_;
+
+public:
+  insertion_range();
+
+  insertion_range(int begin, int end);
+
+  int
+  begin() const;
+
+  int
+  end() const;
+}; // end class insertion_range
 
 class function_suppression;
 
