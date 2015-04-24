@@ -161,10 +161,10 @@ remove_trailing_white_spaces(const string& str)
   return result;
 }
 
-// <property_base stuff>
+// <property stuff>
 
-/// Private data of @ref property_base type.
-struct property_base::priv
+/// Private data of @ref property type.
+struct property::priv
 {
   string name_;
 
@@ -174,17 +174,17 @@ struct property_base::priv
   priv(const string& name)
     : name_(name)
   {}
-}; // end struct property_base::priv
+}; // end struct property::priv
 
-/// Constructor of @ref property_base.
-property_base::property_base()
+/// Constructor of @ref property.
+property::property()
   : priv_(new priv)
 {}
 
-/// Constructor of @ref property_base
+/// Constructor of @ref property
 ///
 /// @param name the name of the property.
-property_base::property_base(const string& name)
+property::property(const string& name)
   : priv_(new priv(name))
 {}
 
@@ -192,39 +192,244 @@ property_base::property_base(const string& name)
 ///
 /// @return the name of the property.
 const string&
-property_base::get_name()const
+property::get_name()const
 {return priv_->name_;}
 
 /// Setter of the name of the property.
 ///
 /// @param name the new name of the property.
 void
-property_base::set_name(const string& name)
+property::set_name(const string& name)
 {priv_->name_ = name;}
 
 /// Destructor of the property.
-property_base::~property_base()
+property::~property()
 {}
-// </property_base stuff>
+// </property stuff>
+
+// <property_value stuff>
+
+/// Private data for the @ref property_value type.
+struct property_value::priv
+{
+  enum property_value::value_kind kind_;
+
+  priv(property_value::value_kind kind = ABSTRACT_PROPERTY_VALUE)
+    : kind_(kind)
+  {}
+}; // property_value::priv
+
+/// Default constructor for the @ref property_value type.
+///
+/// @param kind the of @êef property_value that is being constructed.
+property_value::property_value()
+  : priv_(new priv(ABSTRACT_PROPERTY_VALUE))
+{}
+
+/// Constructor for the @ref property_value type.
+///
+/// @param kind the of @êef property_value that is being constructed.
+property_value::property_value(value_kind kind)
+  : priv_(new priv(kind))
+{}
+
+/// Getter for the kind of the @ref property_value type.
+///
+/// @return the kind of @ref property_value we are looking at.
+property_value::value_kind
+property_value::get_kind() const
+{return priv_->kind_;}
+
+/// Converts the current property value to a string.
+///
+/// @return the string representation of the property value.
+property_value::operator const string& () const
+{return as_string();}
+
+/// Destructor for the @ref proprerty_value type.
+property_value::~property_value()
+{}
+// </property_value stuff>
+
+// <string_property stuff>
+
+/// The private data for the @ref string_property_value type.
+struct string_property_value::priv
+{
+  string content_;
+
+  priv()
+  {}
+
+  priv(const string& c)
+    : content_(c)
+  {}
+}; // end struct string_property::priv
+
+/// Constructor of the @ref string_property_value type.
+string_property_value::string_property_value()
+  : property_value(STRING_PROPERTY_VALUE),
+    priv_(new priv())
+{}
+
+/// Constructor of the @ref string_property_value.
+///
+/// @param content the string content of the property value.
+string_property_value::string_property_value(const string& content)
+  : property_value(STRING_PROPERTY_VALUE),
+    priv_(new priv(content))
+{}
+
+/// Setter of the content of the string property value.
+///
+/// @param c the new content.
+void
+string_property_value::set_content(const string& c)
+{priv_->content_ = c;}
+
+/// Convert the string property value into a string.
+///
+/// @return the string contained in the string property value.
+const string&
+string_property_value::as_string() const
+{return priv_->content_;}
+
+/// Conversion operator to a string, for the @ref
+/// string_property_value type.
+///
+/// @return the string representing this string_property_value.
+string_property_value::operator string() const
+{return as_string();}
+
+/// Test if a given property value is a string property value.
+///
+/// @return a pointer to the @ref string_property_value sub-object of
+/// the @ref property_value instance, if it's an instance of @ref
+/// string_property_value too.
+string_property_value*
+is_string_property_value(const property_value* v)
+{return dynamic_cast<string_property_value*>(const_cast<property_value*>(v));}
+
+/// Test if a given property value is a string property value.
+///
+/// @return a pointer to the @ref string_property_value sub-object of
+/// the @ref property_value instance, if it's an instance of @ref
+/// string_property_value too.
+string_property_value_sptr
+is_string_property_value(const property_value_sptr v)
+{return dynamic_pointer_cast<string_property_value>(v);}
+
+/// Destructor for the @ref string_property_value
+string_property_value::~string_property_value()
+{}
+
+// </string_property stuff>
+
+// <tuple_property_value>
+
+/// The private data of the @ref tuple_property_value type.
+struct tuple_property_value::priv
+{
+  vector<property_value_sptr>	value_items_;
+  string			string_rep_;
+
+  priv()
+  {}
+
+  priv(const vector<property_value_sptr>& value_items)
+    : value_items_(value_items)
+  {}
+}; // end struct tuple_property_value::priv
+
+/// Constructor for the @ref tuple_property_value type.
+///
+/// @param v the tuple content of the value.
+tuple_property_value::tuple_property_value(const vector<property_value_sptr>& v)
+  : property_value(TUPLE_PROPERTY_VALUE),
+    priv_(new priv(v))
+{}
+
+/// Getter for the content of the @ref tuple_property_value instance.
+///
+/// @return the content of the @ref tuple_property_value instance.
+const vector<property_value_sptr>&
+tuple_property_value::get_value_items() const
+{return priv_->value_items_;}
+
+/// Getter for the content of the @ref tuple_property_value instance.
+///
+/// @return the content of the @ref tuple_property_value instance.
+vector<property_value_sptr>&
+tuple_property_value::get_value_items()
+{return priv_->value_items_;}
+
+/// Destructor of the @ref tuple_property_value type.
+tuple_property_value::~tuple_property_value()
+{}
+
+/// Convert to the instance of @ref tuple_property_value to a string.
+///
+/// @return the string representation of the @ref tuple_property_value.
+const string&
+tuple_property_value::as_string() const
+{
+  if (priv_->string_rep_.empty())
+    {
+      priv_->string_rep_ += '{';
+      for (vector<property_value_sptr>::const_iterator i =
+	     get_value_items().begin();
+	   i != get_value_items().end();
+	   ++i)
+	{
+	  if (i != get_value_items().begin())
+	    priv_->string_rep_ += ",";
+	  priv_->string_rep_ += (*i)->as_string();
+	}
+      priv_->string_rep_ += '}';
+    }
+  return priv_->string_rep_;
+}
+
+/// Test if a given instance @ref property_value is an instance of
+/// @ref tuple_property_value too.
+///
+/// @return the @ref tuple_property_value sub-object of the @ref
+/// property_value instance, if it's an instance of @ref
+/// tuple_property_value too.
+tuple_property_value*
+is_tuple_property_value(const property_value* v)
+{return dynamic_cast<tuple_property_value*>(const_cast<property_value*>(v));}
+
+/// Test if a given instance @ref property_value is an instance of
+/// @ref tuple_property_value too.
+///
+/// @return the @ref tuple_property_value sub-object of the @ref
+/// property_value instance, if it's an instance of @ref
+/// tuple_property_value too.
+tuple_property_value_sptr
+is_tuple_property_value(const property_value_sptr v)
+{return dynamic_pointer_cast<tuple_property_value>(v);}
+
+// </tuple_property_value>
 
 // <simple_property stuff>
 
 /// Private data of the @ref simple_property type.
 struct simple_property::priv
 {
-  string value_;
+  string_property_value_sptr value_;
 
   priv()
   {}
 
-  priv(const string& value)
+  priv(const string_property_value_sptr value)
     : value_(value)
   {}
 }; // end struct simple_property::priv
 
 /// Default constructor of the @ref simple_property type.
 simple_property::simple_property()
-  : property_base(),
+  : property(),
     priv_(new priv)
 {}
 
@@ -234,15 +439,15 @@ simple_property::simple_property()
 ///
 /// @param value the value of the property.
 simple_property::simple_property(const string& name,
-				 const string& value)
-  : property_base(name),
+				 const string_property_value_sptr value)
+  : property(name),
     priv_(new priv(value))
 {}
 
 /// Getter for the string value of the property.
 ///
 /// @return the string value of the property.
-const string&
+const string_property_value_sptr&
 simple_property::get_value() const
 {return priv_->value_;}
 
@@ -250,29 +455,29 @@ simple_property::get_value() const
 ///
 /// @param value the new string value of the property.
 void
-simple_property::set_value(const string& value)
+simple_property::set_value(const string_property_value_sptr value)
 {priv_->value_ = value;}
 
 /// Destructor of the @ref simple_property type.
 simple_property::~simple_property()
 {}
 
-/// Tests if a @ref property_base is a simple property.
+/// Tests if a @ref property is a simple property.
 ///
 /// @return a pointer to the @ref simple_property sub-object of the
-/// @ref property_base instance, iff it's an @ref simple_property
+/// @ref property instance, iff it's an @ref simple_property
 /// instance.
 simple_property*
-is_simple_property(const property_base* p)
-{return dynamic_cast<simple_property*>(const_cast<property_base*>(p));}
+is_simple_property(const property* p)
+{return dynamic_cast<simple_property*>(const_cast<property*>(p));}
 
-/// Tests if a @ref property_base is a simple property.
+/// Tests if a @ref property is a simple property.
 ///
 /// @return a smart pointer to the @ref simple_property sub-object of
-/// the @ref property_base instance, iff it's an @ref simple_property
+/// the @ref property instance, iff it's an @ref simple_property
 /// instance.
 simple_property_sptr
-is_simple_property(const property_base_sptr p)
+is_simple_property(const property_sptr p)
 {return dynamic_pointer_cast<simple_property>(p);}
 
 // </simple_property stuff>
@@ -280,19 +485,19 @@ is_simple_property(const property_base_sptr p)
 // <tuple_property stuff>
 struct tuple_property::priv
 {
-  vector<string> values_;
+  tuple_property_value_sptr value_;
 
   priv()
   {}
 
-  priv(const vector<string>& values)
-    : values_(values)
+  priv(const tuple_property_value_sptr value)
+    : value_(value)
   {}
 }; // end struct tuple_property::priv
 
 /// Default constructor of the @ref tuple_property type.
 tuple_property::tuple_property()
-  : property_base(),
+  : property(),
     priv_(new priv)
 {}
 
@@ -302,56 +507,49 @@ tuple_property::tuple_property()
 ///
 /// @param values the tuple value of the property.
 tuple_property::tuple_property(const string& name,
-			       const vector<string>& values)
-  : property_base(name),
-    priv_(new priv(values))
+			       const tuple_property_value_sptr value)
+  : property(name),
+    priv_(new priv(value))
 {}
 
 /// Setter for the tuple value of the property.
 ///
 /// @param values the new tuple value of the property.
 void
-tuple_property::set_values(const vector<string>& values)
-{priv_->values_ = values;}
+tuple_property::set_value(const tuple_property_value_sptr value)
+{priv_->value_ = value;}
 
 /// Getter for the tuple value of the property.
 ///
 /// @return the tuple value of the property.
-const vector<string>&
-tuple_property::get_values() const
-{return priv_->values_;}
-
-/// Getter for the tuple value of the property.
-///
-/// @return the tuple value of the property.
-vector<string>&
-tuple_property::get_values()
-{return priv_->values_;}
+const tuple_property_value_sptr&
+tuple_property::get_value() const
+{return priv_->value_;}
 
 /// Destructor for the @ref tuple_property type.
 tuple_property::~tuple_property()
 {}
 
-/// Test if an instance of @ref property_base is an instance of @ref
+/// Test if an instance of @ref property is an instance of @ref
 /// tuple_property.
 ///
-/// @param p the instance of @ref property_base to test for.
+/// @param p the instance of @ref property to test for.
 ///
 /// @return return a pointer to the sub-object of @ref tuple_property
 /// iff @p p is an instance of @ref tuple_property.
 tuple_property*
-is_tuple_property(const property_base* p)
-{return dynamic_cast<tuple_property*>(const_cast<property_base*>(p));}
+is_tuple_property(const property* p)
+{return dynamic_cast<tuple_property*>(const_cast<property*>(p));}
 
-/// Test if an instance of @ref property_base is an instance of @ref
+/// Test if an instance of @ref property is an instance of @ref
 /// tuple_property.
 ///
-/// @param p the instance of @ref property_base to test for.
+/// @param p the instance of @ref property to test for.
 ///
 /// @return return a smart pointer to the sub-object of @ref
 /// tuple_property iff @p p is an instance of @ref tuple_property.
 tuple_property_sptr
-is_tuple_property(const property_base_sptr p)
+is_tuple_property(const property_sptr p)
 {return dynamic_pointer_cast<tuple_property>(p);}
 
 // </tuple_property stuff>
@@ -416,7 +614,7 @@ config::section::set_properties(const property_vector& properties)
 ///
 /// @param prop the property to add to the section.
 void
-config::section::add_property(const property_base_sptr prop)
+config::section::add_property(const property_sptr prop)
 {priv_->properties_.push_back(prop);}
 
 /// Find a property that has a given name.
@@ -427,7 +625,7 @@ config::section::add_property(const property_base_sptr prop)
 ///
 /// @return the found property, or nil if no property with the name @p
 /// prop_name was found.
-property_base_sptr
+property_sptr
 config::section::find_property(const string& prop_name) const
 {
   for (property_vector::const_iterator i = get_properties().begin();
@@ -435,7 +633,7 @@ config::section::find_property(const string& prop_name) const
        ++i)
     if ((*i)->get_name() == prop_name)
       return *i;
-  return property_base_sptr();
+  return property_sptr();
 }
 
 /// Destructor of config::section.
@@ -654,20 +852,42 @@ public:
 
   /// Read a property value.
   ///
-  /// @param value out parameter.  Is set to the property value that
-  /// has been parsed.  This is set only if the function returned true.
-  ///
-  /// @return the property read, or NULL if none was read.
-  bool
-  read_simple_property_value(string& value)
+  /// @return the property value read.
+  property_value_sptr
+  read_property_value()
   {
+    property_value_sptr nil, result;
+
     int b = in_.peek();
     if (!in_.good())
-      return false;
+      return nil;
+
+    if (b == '{')
+      {
+	if (tuple_property_value_sptr t = read_tuple_property_value())
+	  return t;
+	return nil;
+      }
+    return read_string_property_value();
+  }
+
+  /// Read a string property value.
+  ///
+  /// @return the property value that has been parsed.
+  string_property_value_sptr
+  read_string_property_value()
+  {
+    string_property_value_sptr nil, result;
+    int b = in_.peek();
+    if (!in_.good())
+      return nil;
 
     if (char_is_delimiter(b, /*include_white_space=*/false))
-      // Empty property value.  This is accepted.
-      return true;
+      {
+	// Empty property value.  This is accepted.
+	result.reset(new string_property_value);
+	return result;
+      }
 
     string v;
     char c = 0;
@@ -681,8 +901,9 @@ public:
 	assert(read_next_char(c));
 	v += c;
       }
-    value = remove_trailing_white_spaces(v);
-    return true;
+    string value = remove_trailing_white_spaces(v);
+    result.reset(new string_property_value(value));
+    return result;
   }
 
   /// A property value that is a tuple.
@@ -691,41 +912,43 @@ public:
   ///
   /// @return true iff the tuple property value could be read
   /// correctly.
-  bool
-  read_tuple_property_value(vector<string>& tuple)
+  tuple_property_value_sptr
+  read_tuple_property_value()
   {
+    tuple_property_value_sptr nil, result;
     int b = in_.peek();
     if (!in_.good())
-      return false;
+      return nil;
 
     if (b != '{')
-      return false;
+      return nil;
 
     char c = 0;
     assert(read_next_char(c));
 
-    string value;
-    vector<string> t;
+    property_value_sptr value;
+    vector<property_value_sptr> values;
     while (in_.good() && in_.peek() != '}')
       {
-	while (read_simple_property_value(value) && !value.empty())
-	  {
-	    t.push_back(value);
-	    value.clear();
-	  }
+	skip_white_spaces();
+	if ((value = read_property_value()))
+	  values.push_back(value);
+	skip_white_spaces();
 	if (in_.good() && in_.peek() == ',')
 	  {
-	    char c = 0;
+	    c = 0;
 	    read_next_char(c);
 	  }
       }
 
     b = in_.peek();
     if (b != '}')
-      return false;
+      return nil;
+    c = 0;
+    read_next_char(c);
 
-    tuple = t;
-    return true;
+    result.reset(new tuple_property_value(values));
+    return result;
   }
 
   /// Read the name of a section.
@@ -762,10 +985,10 @@ public:
   ///
   /// @return the resulting pointer to property iff one could be
   /// parsed.
-  property_base_sptr
+  property_sptr
   read_property()
   {
-    property_base_sptr nil;
+    property_sptr nil;
 
     string name;
     if (!read_property_name(name))
@@ -783,23 +1006,19 @@ public:
     if (!in_.good())
       return nil;
 
-    bool has_simple_value = false;
-    string simple_value;
-    bool has_tuple_value = false;
-    vector<string> tuple_value;
-    if (read_tuple_property_value(tuple_value))
-      has_tuple_value = true;
-    else if (read_simple_property_value(simple_value))
-      has_simple_value = true;
-
-    if (!has_simple_value && !has_tuple_value)
+    property_value_sptr value = read_property_value();
+    if (!value)
       return nil;
 
-    property_base_sptr result;
-    if (has_tuple_value)
-      result.reset(new tuple_property(name, tuple_value));
+    property_sptr result;
+    if (tuple_property_value_sptr tv = is_tuple_property_value(value))
+      result.reset(new tuple_property(name, tv));
     else
-      result.reset(new simple_property(name, simple_value));
+      {
+	string_property_value_sptr sv = is_string_property_value(value);
+	assert(sv);
+	result.reset(new simple_property(name, sv));
+      }
 
     return result;
   }
@@ -835,7 +1054,7 @@ public:
       return nil;
 
     config::property_vector properties;
-    while (property_base_sptr prop = read_property())
+    while (property_sptr prop = read_property())
       {
 	properties.push_back(prop);
 	skip_white_spaces_or_comments();
@@ -1039,26 +1258,18 @@ read_config(const string& path)
 ///
 /// @return the string that represents the value of @p prop.
 static string
-write_property_value(const property_base_sptr& prop)
+write_property_value(const property_sptr& prop)
 {
-  if (simple_property_sptr p = is_simple_property(prop))
-    return p->get_value();
-
-  string result = "{";
-  if (tuple_property_sptr p = is_tuple_property(prop))
-    for (vector<string>::const_iterator v = p->get_values().begin();
-	 v != p->get_values().end();
-	 ++v)
-      {
-	if (v != p->get_values().begin())
-	  result += ",";
-	result +=  *v;
-      }
+  string result;
+  if (simple_property_sptr simple_prop = is_simple_property(prop))
+    result = simple_prop->get_value()->as_string();
   else
-    abort();
-  result += "}";
-
-  return result;
+    {
+      tuple_property_sptr tuple_prop = is_tuple_property(prop);
+      assert(tuple_prop);
+      result = tuple_prop->get_value()->as_string();
+    }
+    return result;
 }
 
 /// Serialize an ini property to an output stream.
@@ -1069,7 +1280,7 @@ write_property_value(const property_base_sptr& prop)
 ///
 /// @return true if the ouput stream is left in a non-erratic state.
 static bool
-write_property(const property_base_sptr& prop,
+write_property(const property_sptr& prop,
 	       std::ostream& out)
 {
   out << prop->get_name() << " = " << write_property_value(prop);

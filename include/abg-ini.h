@@ -46,13 +46,13 @@ using std::string;
 using std::vector;
 using std:: pair;
 
-class property_base;
-/// Convenience typefef for shared_ptr to @ref property_base.
-typedef shared_ptr<property_base> property_base_sptr;
+class property;
+/// Convenience typefef for shared_ptr to @ref property.
+typedef shared_ptr<property> property_sptr;
 
 /// The base class of the different kinds of properties of an INI
 /// file.
-class property_base
+class property
 {
   struct priv;
   typedef shared_ptr<priv> priv_sptr;
@@ -60,9 +60,9 @@ class property_base
 
 public:
 
-  property_base();
+  property();
 
-  property_base(const string& name);
+  property(const string& name);
 
   const string&
   get_name() const;
@@ -70,15 +70,124 @@ public:
   void
   set_name(const string& name);
 
-  virtual ~property_base();
-}; // end class property_base
+  virtual ~property();
+}; // end class property
+
+class property_value;
+
+/// Convenience typedef for a shared_ptr to @ref property_value.
+typedef shared_ptr<property_value> property_value_sptr;
+
+/// Base class of propertie values.
+class property_value
+{
+public:
+  enum value_kind
+  {
+    ABSTRACT_PROPERTY_VALUE = 0,
+    STRING_PROPERTY_VALUE = 1,
+    TUPLE_PROPERTY_VALUE = 2,
+  };
+
+private:
+  struct priv;
+  typedef shared_ptr<priv> priv_sptr;
+  priv_sptr priv_;
+
+public:
+
+  property_value();
+  property_value(value_kind);
+
+  value_kind
+  get_kind() const;
+
+  virtual const string&
+  as_string() const = 0;
+
+  operator const string& () const;
+
+  virtual ~property_value();
+}; // end class property_value.
+
+class string_property_value;
+
+/// A convenience typedef for a shared_ptr to @ref string_property_value.
+typedef shared_ptr<string_property_value> string_property_value_sptr;
+
+/// A property value which is a string.
+class string_property_value : public property_value
+{
+  struct priv;
+  typedef shared_ptr<priv> priv_sptr;
+  priv_sptr priv_;
+
+public:
+  string_property_value();
+  string_property_value(const string& value);
+
+  void
+  set_content(const string&);
+
+  virtual const string&
+  as_string() const;
+
+  operator string() const;
+
+  virtual ~string_property_value();
+}; // end class string_property_value
+
+string_property_value*
+is_string_property_value(const property_value*);
+
+string_property_value_sptr
+is_string_property_value(const property_value_sptr);
+
+class tuple_property_value;
+
+/// Convenience typedef for a shared_ptr to a @ref
+/// tuple_property_value.
+typedef shared_ptr<tuple_property_value> tuple_property_value_sptr;
+
+/// A property value that is a tuple.
+///
+/// Each element of the tuple is itself a property value that can
+/// either be a string, or another tuple, for instance.
+class tuple_property_value : public property_value
+{
+  struct priv;
+  typedef shared_ptr<priv> priv_sptr;
+  priv_sptr priv_;
+
+public:
+  tuple_property_value(const vector<property_value_sptr>&);
+
+  const vector<property_value_sptr>&
+  get_value_items() const;
+
+  vector<property_value_sptr>&
+  get_value_items();
+
+  virtual const string&
+  as_string() const;
+
+  operator string() const;
+
+  virtual ~tuple_property_value();
+}; // end class tuple_property_value
+
+tuple_property_value*
+is_tuple_property_value(const property_value*);
+
+tuple_property_value_sptr
+is_tuple_property_value(const property_value_sptr);
 
 class simple_property;
 /// Convenience typedef for a shared_ptr to an @ref simple_property.
 typedef shared_ptr<simple_property> simple_property_sptr;
 
 /// A simple property.  That is, one which value is a string.
-class simple_property : public property_base
+class simple_property : public property
 {
   struct priv;
   typedef shared_ptr<priv> priv_sptr;
@@ -88,22 +197,23 @@ class simple_property : public property_base
 public:
   simple_property();
 
-  simple_property(const string& name, const string& value);
+  simple_property(const string& name,
+		  const string_property_value_sptr value);
 
-  const string&
+  const string_property_value_sptr&
   get_value() const;
 
   void
-  set_value(const string&);
+  set_value(const string_property_value_sptr value);
 
   virtual ~simple_property();
 }; // end class simple_property
 
 simple_property*
-is_simple_property(const property_base* p);
+is_simple_property(const property* p);
 
 simple_property_sptr
-is_simple_property(const property_base_sptr p);
+is_simple_property(const property_sptr p);
 
 class tuple_property;
 /// Convenience typedef for a shared_ptr of @ref tuple_property.
@@ -111,7 +221,7 @@ typedef shared_ptr<tuple_property> tuple_property_sptr;
 
 /// Abstraction of a tuple property.  A tuple property is a property
 /// which value is a tuple.
-class tuple_property : public property_base
+class tuple_property : public property
 {
   struct priv;
   typedef shared_ptr<priv> priv_sptr;
@@ -122,26 +232,23 @@ public:
   tuple_property();
 
   tuple_property(const string& name,
-		 const vector<string>& values);
+		 const tuple_property_value_sptr v);
 
   void
-  set_values(const vector<string>& values);
+  set_value(const tuple_property_value_sptr value);
 
-  const vector<string>&
-  get_values() const;
-
-  vector<string>&
-  get_values();
+  const tuple_property_value_sptr&
+  get_value() const;
 
   virtual
   ~tuple_property();
 }; // end class tuple_property
 
 tuple_property*
-is_tuple_property(const property_base* p);
+is_tuple_property(const property* p);
 
 tuple_property_sptr
-is_tuple_property(const property_base_sptr p);
+is_tuple_property(const property_sptr p);
 
 class config;
 
@@ -165,7 +272,7 @@ public:
   typedef vector<section_sptr> sections_type;
 
   /// A convenience typedef for a vector of @ref property_sptr
-  typedef vector<property_base_sptr> property_vector;
+  typedef vector<property_sptr> property_vector;
 
 private:
   priv_sptr priv_;
@@ -218,9 +325,9 @@ public:
   set_properties(const property_vector& properties);
 
   void
-  add_property(const property_base_sptr prop);
+  add_property(const property_sptr prop);
 
-  property_base_sptr
+  property_sptr
   find_property(const string& prop_name) const;
 
   virtual ~section();
